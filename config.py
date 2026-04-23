@@ -2,7 +2,7 @@
 
 Override any value with an environment variable, e.g.:
 
-    UAV_MODEL=yolo26s.pt python videoproc_v4_realtime.py
+    UAV_MODEL=yolo26s.pt python videoproc_realtime.py
     UAV_CONF=0.3 python yolo_test_video.py
 """
 import os
@@ -13,7 +13,7 @@ import os
 #   they know only 10 animal classes and have never seen UAV aerial views,
 #   so out-of-the-box they will detect FAR FEWER animals than your fine-tuned model.
 # To truly benefit from YOLO26, retrain on your dataset (see yolo_train.ipynb / ROADMAP Faz 1.1).
-FINE_TUNED_MODEL = "yolomodel/model/detect/train/weights/best.pt"
+FINE_TUNED_MODEL = "yolomodel/yolo26_animals/weights/best.pt"
 YOLO26_PRETRAINED = "yolo26n.pt"  # COCO — use only as a baseline or after fine-tuning
 
 MODEL_PATH = os.environ.get("UAV_MODEL", FINE_TUNED_MODEL)
@@ -25,7 +25,7 @@ TRACKER = os.environ.get("UAV_TRACKER", "bytetrack.yaml")
 DEVICE = os.environ.get("UAV_DEVICE", "")  # "" = auto, "cpu", "mps", "0" (cuda:0)
 
 # Frame skipping for expensive models
-PROCESS_EVERY_N_FRAMES = int(os.environ.get("UAV_STRIDE", "5"))
+PROCESS_EVERY_N_FRAMES = int(os.environ.get("UAV_STRIDE", "1"))
 
 # Sources
 VIDEO_PATH = os.environ.get("UAV_VIDEO", "videos/testvideo.mp4")

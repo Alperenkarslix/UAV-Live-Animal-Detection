@@ -1,104 +1,169 @@
 # UAV Live Animal Detection
 
-This project aims to track and monitor wild animals using UAV (Unmanned Aerial Vehicle) cameras. It involves advanced image processing techniques to detect and visualize animals' positions within the UAV camera's field of view.
+UAV (Unmanned Aerial Vehicle) kameralarıyla yaban hayatı tespit, takip ve konum görselleştirme sistemi. Uçuş sırasındaki canlı görüntüde hayvanları YOLO26 ile tespit eder; bir harita üzerinden girilen kamera/hayvan GPS koordinatlarını pikselle eşler ve kamera görüş açısı dışındaki hayvanları okla + mesafeyle gösterir.
 
-## Project Overview
+---
 
-The main objective is to locate and track animals within a UAV image and visualize their positions. If an animal is outside the UAV image, a cursor indicates its position and distance.
+## Özellikler
 
-### Key Features
-- **Real-Time Animal Tracking**: Detects and tracks animals in real-time using UAV camera imagery.
-- **Distance Calculation**: Calculates the distance of animals from the UAV camera using the Haversine formula.
-- **Visualization**: Displays animals' positions within the image or indicates their positions and distances if outside the image frame.
-- **Web-Based Simulation**: Uses Python's Flask library for a web-based simulation of UAV camera and animal positions.
-- **YOLOv8 Model**: Employs the YOLOv8 model for high-performance animal detection and classification.
+- **Fine-tuned YOLO26** — 6 Afrika safari hayvanı üzerinde eğitilmiş (mAP50 = **0.911**)
+  - `Elephant`, `Giraffe`, `Impala`, `Lechwe`, `Tsessebe`, `Zebra`
+- **Gerçek-zamanlı takip** — ByteTrack ile kalıcı nesne ID'leri
+- **GPS → piksel dönüşümü** — Haversine formülüyle kamera çokgen içinde/dışında ayrımı
+- **Web tabanlı simülasyon** — Flask + Yandex Maps ile hayvan/kamera koordinatları
+- **Otomatik video yönü** — portre çekimler otomatik yatay döndürülür
 
-## Installation
+---
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/Alperenkarslix/UAV-Live-Animal-Detection.git
-   cd UAV-Live-Animal-Detection
-   ```
+## Kurulum
 
-2. Create a virtual environment and activate it:
-   ```
-   python3 -m venv env
-   source env/bin/activate   # On Windows: env\Scripts\activate
-   ```
+```bash
+git clone https://github.com/Alperenkarslix/UAV-Live-Animal-Detection.git
+cd UAV-Live-Animal-Detection
 
-3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+python3 -m venv env
+source env/bin/activate           # Windows: env\Scripts\activate
 
-## Usage
-
-1. Start the web application (creates/updates `output.json`):
-   ```
-   python testdatas.py
-   ```
-   Open `http://localhost:5000` in your browser, enter the number of animals, place markers, drag the camera rectangle, and click **Kaydet**.
-
-2. (Optional) Simulate animal movement over time:
-   ```
-   python hareket.py
-   ```
-   This periodically mutates `output.json`.
-
-3. Start the video processor:
-   - Without YOLO: `python videoproc_v2.py`
-   - Video file with YOLO toggle (press `y`): `python videoproc_v3_video.py`
-   - Live camera with YOLO toggle: `python videoproc_v4_realtime.py`
-
-### Model selection
-
-All YOLO-related scripts read from `config.py`. **Default = your fine-tuned weights**
-(`yolomodel/model/detect/train/weights/best.pt`) — domain-specific, trained on UAV
-animal footage, and detects many more animals than any stock YOLO26 model.
-
-Override via environment variables:
-
-```
-UAV_MODEL=yolo26n.pt python yolo_test_video.py           # COCO baseline (weak on animals!)
-UAV_MODEL=yolo26s.pt python videoproc_v4_realtime.py     # COCO, a bit bigger
-UAV_CONF=0.3 UAV_IMGSZ=960 python videoproc_v3_video.py
-UAV_DEVICE=mps python yolo_test_realtime.py              # "mps" on Apple Silicon, "0" for cuda:0
+pip install -r requirements.txt
 ```
 
-> ⚠️ Stock `yolo26n.pt`/`yolo26s.pt` are pretrained on **COCO** and know only 10
-> general animal classes (cat, dog, horse, sheep, cow, bird, bear, elephant,
-> zebra, giraffe) from everyday angles. They **will miss most UAV targets** until
-> you fine-tune YOLO26 on your dataset. See `ROADMAP.md → Faz 1.1` and
-> `yolo_train.ipynb`.
+### Fine-tuned ağırlıklar
 
-Tracking (persistent IDs) is enabled by default in v3/v4 and `yolo_test_realtime.py`.
+Mevcut repoda `yolomodel/yolo26_animals/weights/best.pt` (~19 MB) bulunur. Kendin eğitmek istersen `yolo_train.ipynb`'ı aç (Kaggle / Colab / local).
 
-## Project Structure
+---
 
-- `testdatas.py` — Flask application that captures animal/camera coordinates from the map.
-- `hareket.py` — Background simulator that perturbs animal coordinates in `output.json`.
-- `video_common.py` — Shared overlay/rendering helpers used by the video processors.
-- `videoproc_v1.py` — Legacy pixel-space demo with random animal positions.
-- `videoproc_v2.py` — Video overlay using real `output.json` coordinates.
-- `videoproc_v3_video.py` — Same as v2 plus toggleable YOLO detection on the video file.
-- `videoproc_v4_realtime.py` — Same as v3 but reads from a live webcam.
-- `yolo_test_video.py` / `yolo_test_realtime.py` — Standalone YOLO testers.
-- `yolomodel/` — Trained YOLOv8 weights (`yolomodel/model/detect/train/weights/best.pt`).
-- `templates/` — Flask Jinja templates (`index.html`, `sonuc.html`).
-- `videos/` — Sample input videos.
-- `output.json` — Shared state: camera polygon, animal coordinates, distances.
+## Kullanım
 
-## Contributing
+### 1) Web arayüzünden koordinat oluştur
 
-Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
+```bash
+python web_app.py
+```
+→ `http://localhost:5000` → hayvan sayısını gir, haritaya marker yerleştir, kamera dikdörtgenini sürükle, **Kaydet** → `output.json` oluşur.
 
-## Contact
+### 2) (opsiyonel) Hayvan hareketini simüle et
 
-For any questions or inquiries, please contact the project contributors:
-- Anıl Taha ADAK: tahaadak94@gmail.com
-- Alperen KARSLI: alperenkarsliceng@gmail.com
-- Asil FINDIK: asilfndk@gmail.com
+```bash
+python simulate_movement.py
+```
+`output.json`'daki koordinatları küçük rastgele ofsetlerle günceller. Canlı UAV akışı yokken görsel doğrulama için kullanışlı.
 
-Academic Advisor: Doç. Dr. Fatih AYDIN
-Industrial Advisor: Dr. Muhterem Özgür KIZILKAYA
+### 3) Video / webcam üzerinden tespit
+
+```bash
+# Kaydedilmiş video üzerinden
+python videoproc_video.py
+
+# Canlı webcam'den
+python videoproc_realtime.py
+```
+Pencere açıldığında **`y`** → YOLO aç/kapa, **`q`** → çık.
+
+---
+
+## Yapılandırma
+
+Tüm değerler `config.py` içinde, ortam değişkeniyle override edilebilir:
+
+| Değişken | Default | Açıklama |
+|---|---|---|
+| `UAV_MODEL` | `yolomodel/yolo26_animals/weights/best.pt` | Model yolu |
+| `UAV_CONF` | `0.4` | Confidence eşiği |
+| `UAV_IMGSZ` | `640` | Inference görüntü boyutu |
+| `UAV_DEVICE` | *(auto)* | `cpu` / `mps` / `0` (cuda:0) |
+| `UAV_STRIDE` | `1` | Her N frame'de bir YOLO çalışsın |
+| `UAV_VIDEO` | `videos/testvideo.mp4` | Video dosyası yolu |
+| `UAV_CAM` | `0` | Webcam index |
+
+**Örnek kullanımlar:**
+
+```bash
+# Apple Silicon'da MPS hızlandırması
+UAV_DEVICE=mps python videoproc_realtime.py
+
+# Küçük nesneler için yüksek çözünürlük + düşük eşik
+UAV_CONF=0.3 UAV_IMGSZ=960 python videoproc_video.py
+
+# Farklı bir video denemek
+UAV_VIDEO=videos/safari.mp4 python videoproc_video.py
+
+# COCO baseline karşılaştırması (Afrika hayvanlarında çok zayıftır!)
+UAV_MODEL=yolo26s.pt python videoproc_video.py
+```
+
+---
+
+## Model Eğitimi
+
+Detaylı Kaggle/Colab akışı için `yolo_train.ipynb`'a bak.
+
+**Hızlı özet (Kaggle, 2× T4 ücretsiz, ~1 saat):**
+1. Kaggle'da yeni notebook → `yolo_train.ipynb`'ı yükle
+2. Settings → Accelerator: **GPU T4 x2**, Internet: **On**
+3. Tüm hücreleri çalıştır
+4. Bitince sağ paneldeki **Output** sekmesinden `yolo26_animals.zip` indir
+5. `unzip -o yolo26_animals.zip -d yolomodel/`
+
+Repo'daki mevcut model zaten bu akışla eğitildi:
+
+| Sınıf | mAP50 |
+|---|---|
+| Lechwe | 0.966 |
+| Giraffe | 0.951 |
+| Impala | 0.942 |
+| Tsessebe | 0.929 |
+| Elephant | 0.885 |
+| Zebra | 0.792 |
+| **Ortalama** | **0.911** |
+
+Inference: ~3ms/frame (T4).
+
+---
+
+## Proje Yapısı
+
+```
+.
+├── config.py                  # Merkezi yapılandırma + env var override
+├── web_app.py                 # Flask: harita → output.json
+├── simulate_movement.py       # output.json için hayvan hareket simülatörü
+├── video_common.py            # Paylaşılan helper'lar (YOLO, overlay, cache)
+├── videoproc_video.py         # Video dosyasından YOLO + overlay
+├── videoproc_realtime.py      # Webcam'den YOLO + overlay
+├── yolo_test_video.py         # Bağımsız YOLO tester (video)
+├── yolo_test_realtime.py      # Bağımsız YOLO tester (webcam)
+├── yolo_train.ipynb           # Kaggle/Colab/Local YOLO26 fine-tune notebook
+├── yolomodel/                 # Eğitilmiş ağırlıklar (best.pt, best.onnx, .mlpackage)
+├── templates/                 # Flask şablonları (index.html, sonuc.html)
+├── videos/                    # Örnek girdi videoları
+├── output.json                # Kamera çokgeni + hayvan koordinatları (paylaşılan durum)
+├── requirements.txt
+└── ROADMAP.md                 # Geliştirme fazları
+```
+
+---
+
+## Yol Haritası
+
+Sonraki geliştirme fazları (`ROADMAP.md`'e bak):
+- Homografi tabanlı gerçek piksel ↔ GPS eşlemesi
+- WebSocket ile canlı video yayını
+- PostGIS ile kalıcı iz / ısı haritası
+- Edge deployment (Jetson/RPi, Docker)
+- LLM ile saha raporu üretimi
+
+---
+
+## Katkı
+
+Fork et, branch aç, pull request gönder.
+
+## İletişim
+
+- Anıl Taha ADAK — tahaadak94@gmail.com
+- Alperen KARSLI — alperenkarsliceng@gmail.com
+- Asil FINDIK — asilfndk@gmail.com
+
+**Akademik Danışman:** Doç. Dr. Fatih AYDIN
+**Endüstri Danışmanı:** Dr. Muhterem Özgür KIZILKAYA

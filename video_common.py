@@ -200,13 +200,15 @@ def load_yolo(model_path, device=""):
     return model
 
 
-def run_yolo_overlay(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
+def detect_yolo(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
+    """Run inference and return a list of (x1, y1, x2, y2, label, conf, track_id) tuples."""
     if use_tracking:
         results = model.track(frame, conf=conf, imgsz=imgsz, persist=True, tracker=tracker, verbose=False)
     else:
         results = model(frame, conf=conf, imgsz=imgsz, verbose=False)
 
     names = getattr(model, "names", {})
+    detections = []
     for result in results:
         boxes = getattr(result, "boxes", None)
         if boxes is None:
@@ -217,10 +219,20 @@ def run_yolo_overlay(frame, model, conf=0.4, imgsz=640, use_tracking=False, trac
             cls_id = int(box.cls[0]) if box.cls is not None else -1
             label = names.get(cls_id, str(cls_id)) if isinstance(names, dict) else str(cls_id)
             track_id = int(box.id[0]) if getattr(box, "id", None) is not None else None
+            detections.append((x1, y1, x2, y2, label, confidence, track_id))
+    return detections
 
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            text = f"{label} {confidence:.2f}"
-            if track_id is not None:
-                text = f"#{track_id} " + text
-            cv2.putText(frame, text, (x1, max(y1 - 10, 15)), FONT, 0.5, (0, 255, 0), 2)
+
+def draw_detections(frame, detections):
+    for x1, y1, x2, y2, label, confidence, track_id in detections:
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        text = f"{label} {confidence:.2f}"
+        if track_id is not None:
+            text = f"#{track_id} " + text
+        cv2.putText(frame, text, (x1, max(y1 - 10, 15)), FONT, 0.5, (0, 255, 0), 2)
     return frame
+
+
+def run_yolo_overlay(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
+    detections = detect_yolo(frame, model, conf=conf, imgsz=imgsz, use_tracking=use_tracking, tracker=tracker)
+    return draw_detections(frame, detections)
