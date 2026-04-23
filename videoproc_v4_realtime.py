@@ -2,36 +2,33 @@ import os
 import sys
 import traceback
 import cv2
-from ultralytics import YOLO
+import config
 from video_common import (
     CachedJson,
     auto_orient,
     fit_to_screen,
     get_capture_dimensions,
+    load_yolo,
     make_corner_points,
     render_overlay,
     run_yolo_overlay,
 )
 
-MODEL_PATH = "yolomodel/model/detect/train/weights/best.pt"
-PROCESS_EVERY_N_FRAMES = 5
-CAMERA_INDEX = 0
-
 
 def main():
     print(f"[v4] cwd={os.getcwd()}")
-    print(f"[v4] model exists: {os.path.exists(MODEL_PATH)}  path={MODEL_PATH}")
+    print(f"[v4] model={config.MODEL_PATH}  conf={config.CONFIDENCE}  imgsz={config.IMG_SIZE}")
     print(f"[v4] output.json exists: {os.path.exists('output.json')}")
 
-    cap = cv2.VideoCapture(CAMERA_INDEX)
+    cap = cv2.VideoCapture(config.CAMERA_INDEX)
     if not cap.isOpened():
-        print(f"[v4] ERROR: cannot open camera index {CAMERA_INDEX}")
+        print(f"[v4] ERROR: cannot open camera index {config.CAMERA_INDEX}")
         print("[v4] On macOS, grant Camera permission to Terminal/iTerm in System Settings → Privacy.")
         return
 
     try:
-        print("[v4] Loading YOLO model...")
-        model = YOLO(MODEL_PATH)
+        print("[v4] Loading YOLO model (first run may download weights)...")
+        model = load_yolo(config.MODEL_PATH, device=config.DEVICE)
         print("[v4] Model loaded.")
     except Exception as e:
         print(f"[v4] YOLO load failed: {e}", file=sys.stderr)
@@ -88,8 +85,12 @@ def main():
                 yolo_frame = auto_orient(yolo_frame)
 
                 frame_count += 1
-                if frame_count % PROCESS_EVERY_N_FRAMES == 0:
-                    run_yolo_overlay(yolo_frame, model)
+                if frame_count % config.PROCESS_EVERY_N_FRAMES == 0:
+                    run_yolo_overlay(
+                        yolo_frame, model,
+                        conf=config.CONFIDENCE, imgsz=config.IMG_SIZE,
+                        use_tracking=True, tracker=config.TRACKER,
+                    )
 
                 cv2.imshow("YOLO", fit_to_screen(yolo_frame))
 

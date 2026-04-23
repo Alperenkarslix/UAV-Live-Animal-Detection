@@ -10,3 +10,14 @@ venv/
 *.log
 *.swp
 .output_*.json
+
+# Training data & results (large, not for git)
+datasets/
+runs/
+
+# Model weights (binary, large)
+*.pt
+*.onnx
+*.mlpackage
+*.mlmodel
+*.zip

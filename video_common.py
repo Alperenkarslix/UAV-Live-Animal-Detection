@@ -188,12 +188,39 @@ def read_with_loop(cap):
     return ret, frame
 
 
-def run_yolo_overlay(frame, model):
-    results = model(frame)
+def load_yolo(model_path, device=""):
+    """Lazily import Ultralytics so modules that never run YOLO stay importable."""
+    from ultralytics import YOLO
+    model = YOLO(model_path)
+    if device:
+        try:
+            model.to(device)
+        except Exception as e:
+            print(f"[yolo] could not move to device={device}: {e}")
+    return model
+
+
+def run_yolo_overlay(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
+    if use_tracking:
+        results = model.track(frame, conf=conf, imgsz=imgsz, persist=True, tracker=tracker, verbose=False)
+    else:
+        results = model(frame, conf=conf, imgsz=imgsz, verbose=False)
+
+    names = getattr(model, "names", {})
     for result in results:
-        for box in result.boxes:
+        boxes = getattr(result, "boxes", None)
+        if boxes is None:
+            continue
+        for box in boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             confidence = float(box.conf[0])
+            cls_id = int(box.cls[0]) if box.cls is not None else -1
+            label = names.get(cls_id, str(cls_id)) if isinstance(names, dict) else str(cls_id)
+            track_id = int(box.id[0]) if getattr(box, "id", None) is not None else None
+
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, f'{confidence:.2f}', (x1, y1 - 10), FONT, 0.5, (0, 255, 0), 2)
+            text = f"{label} {confidence:.2f}"
+            if track_id is not None:
+                text = f"#{track_id} " + text
+            cv2.putText(frame, text, (x1, max(y1 - 10, 15)), FONT, 0.5, (0, 255, 0), 2)
     return frame

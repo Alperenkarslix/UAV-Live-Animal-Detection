@@ -1,5 +1,5 @@
 flask>=2.3
-ultralytics>=8.0
+ultralytics>=8.4.41
 opencv-python>=4.8
 shapely>=2.0
 numpy>=1.24

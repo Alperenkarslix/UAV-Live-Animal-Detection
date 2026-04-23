@@ -2,37 +2,34 @@ import os
 import sys
 import traceback
 import cv2
-from ultralytics import YOLO
+import config
 from video_common import (
     CachedJson,
     auto_orient,
     fit_to_screen,
     get_capture_dimensions,
+    load_yolo,
     make_corner_points,
     read_with_loop,
     render_overlay,
     run_yolo_overlay,
 )
 
-VIDEO_PATH = "videos/testvideo.mp4"
-MODEL_PATH = "yolomodel/model/detect/train/weights/best.pt"
-PROCESS_EVERY_N_FRAMES = 5
-
 
 def main():
     print(f"[v3] cwd={os.getcwd()}")
-    print(f"[v3] video exists: {os.path.exists(VIDEO_PATH)}  path={VIDEO_PATH}")
-    print(f"[v3] model exists: {os.path.exists(MODEL_PATH)}  path={MODEL_PATH}")
+    print(f"[v3] video={config.VIDEO_PATH}  exists={os.path.exists(config.VIDEO_PATH)}")
+    print(f"[v3] model={config.MODEL_PATH}  conf={config.CONFIDENCE}  imgsz={config.IMG_SIZE}")
     print(f"[v3] output.json exists: {os.path.exists('output.json')}")
 
-    cap = cv2.VideoCapture(VIDEO_PATH)
+    cap = cv2.VideoCapture(config.VIDEO_PATH)
     if not cap.isOpened():
-        print(f"[v3] ERROR: cannot open video '{VIDEO_PATH}'")
+        print(f"[v3] ERROR: cannot open video '{config.VIDEO_PATH}'")
         return
 
     try:
-        print("[v3] Loading YOLO model (first run may take a while)...")
-        model = YOLO(MODEL_PATH)
+        print("[v3] Loading YOLO model (first run may download weights)...")
+        model = load_yolo(config.MODEL_PATH, device=config.DEVICE)
         print("[v3] Model loaded.")
     except Exception as e:
         print(f"[v3] YOLO load failed: {e}", file=sys.stderr)
@@ -90,8 +87,12 @@ def main():
                 yolo_frame = auto_orient(yolo_frame)
 
                 frame_count += 1
-                if frame_count % PROCESS_EVERY_N_FRAMES == 0:
-                    run_yolo_overlay(yolo_frame, model)
+                if frame_count % config.PROCESS_EVERY_N_FRAMES == 0:
+                    run_yolo_overlay(
+                        yolo_frame, model,
+                        conf=config.CONFIDENCE, imgsz=config.IMG_SIZE,
+                        use_tracking=True, tracker=config.TRACKER,
+                    )
 
                 cv2.imshow("YOLO", fit_to_screen(yolo_frame))
 

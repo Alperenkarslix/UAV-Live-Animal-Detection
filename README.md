@@ -51,6 +51,29 @@ The main objective is to locate and track animals within a UAV image and visuali
    - Video file with YOLO toggle (press `y`): `python videoproc_v3_video.py`
    - Live camera with YOLO toggle: `python videoproc_v4_realtime.py`
 
+### Model selection
+
+All YOLO-related scripts read from `config.py`. **Default = your fine-tuned weights**
+(`yolomodel/model/detect/train/weights/best.pt`) — domain-specific, trained on UAV
+animal footage, and detects many more animals than any stock YOLO26 model.
+
+Override via environment variables:
+
+```
+UAV_MODEL=yolo26n.pt python yolo_test_video.py           # COCO baseline (weak on animals!)
+UAV_MODEL=yolo26s.pt python videoproc_v4_realtime.py     # COCO, a bit bigger
+UAV_CONF=0.3 UAV_IMGSZ=960 python videoproc_v3_video.py
+UAV_DEVICE=mps python yolo_test_realtime.py              # "mps" on Apple Silicon, "0" for cuda:0
+```
+
+> ⚠️ Stock `yolo26n.pt`/`yolo26s.pt` are pretrained on **COCO** and know only 10
+> general animal classes (cat, dog, horse, sheep, cow, bird, bear, elephant,
+> zebra, giraffe) from everyday angles. They **will miss most UAV targets** until
+> you fine-tune YOLO26 on your dataset. See `ROADMAP.md → Faz 1.1` and
+> `yolo_train.ipynb`.
+
+Tracking (persistent IDs) is enabled by default in v3/v4 and `yolo_test_realtime.py`.
+
 ## Project Structure
 
 - `testdatas.py` — Flask application that captures animal/camera coordinates from the map.
