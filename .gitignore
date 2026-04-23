@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+*.log
+*.swp
+.output_*.json
