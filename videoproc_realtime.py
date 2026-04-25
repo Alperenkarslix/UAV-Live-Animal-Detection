@@ -1,7 +1,9 @@
 import os
 import sys
 import traceback
+
 import cv2
+
 import config
 from video_common import (
     CachedJson,
@@ -24,7 +26,9 @@ def main():
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
     if not cap.isOpened():
         print(f"[v4] ERROR: cannot open camera index {config.CAMERA_INDEX}")
-        print("[v4] On macOS, grant Camera permission to Terminal/iTerm in System Settings → Privacy.")
+        print(
+            "[v4] On macOS, grant Camera permission to Terminal/iTerm in System Settings → Privacy."
+        )
         return
 
     try:
@@ -67,15 +71,15 @@ def main():
                 print(f"[v4] render_overlay failed: {e}", file=sys.stderr)
 
         try:
-            cv2.imshow('Video', fit_to_screen(frame))
+            cv2.imshow("Video", fit_to_screen(frame))
         except cv2.error as e:
             print(f"[v4] cv2.imshow failed: {e}")
             print("[v4] Fix: pip uninstall -y opencv-python-headless && pip install opencv-python")
             break
 
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('y'):
-            cv2.destroyWindow('Video')
+        if key == ord("y"):
+            cv2.destroyWindow("Video")
 
             frame_count = 0
             cached_detections = []
@@ -89,19 +93,22 @@ def main():
                 frame_count += 1
                 if frame_count % config.PROCESS_EVERY_N_FRAMES == 0:
                     cached_detections = detect_yolo(
-                        yolo_frame, model,
-                        conf=config.CONFIDENCE, imgsz=config.IMG_SIZE,
-                        use_tracking=True, tracker=config.TRACKER,
+                        yolo_frame,
+                        model,
+                        conf=config.CONFIDENCE,
+                        imgsz=config.IMG_SIZE,
+                        use_tracking=True,
+                        tracker=config.TRACKER,
                     )
                 draw_detections(yolo_frame, cached_detections)
 
                 cv2.imshow("YOLO", fit_to_screen(yolo_frame))
 
-                if cv2.waitKey(1) & 0xFF == ord('y'):
+                if cv2.waitKey(1) & 0xFF == ord("y"):
                     cv2.destroyWindow("YOLO")
                     break
 
-        elif key == ord('q'):
+        elif key == ord("q"):
             break
 
     cap.release()

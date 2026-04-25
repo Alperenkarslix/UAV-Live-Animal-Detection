@@ -2,61 +2,131 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Commands
+## Quick start
 
-Setup (once):
 ```bash
-python3 -m venv env && source env/bin/activate
-pip install -r requirements.txt
+# Backend (Python)
+uv sync --extra dev --extra ml         # creates .venv, installs FastAPI + Ultralytics + dev tools
+just check                              # ruff lint + format check + pytest
+just dev                                # FastAPI on http://127.0.0.1:8000
+
+# Frontend (Node)
+cd web && npm install && npm run build  # production bundle to web/dist
+cd web && npm run dev                   # Vite dev server on http://localhost:5173 (proxies /api + /ws)
+
+# Legacy pipeline (still works)
+just video                              # videoproc_video.py — overlay + YOLO on testvideo.mp4
+just realtime                           # videoproc_realtime.py — webcam
+just simulate                           # simulate_movement.py — random GPS jitter
 ```
 
-Run the pipeline (these are the common commands — no build/lint/test suite is configured):
-```bash
-python web_app.py              # Flask on :5000 → writes output.json from map UI
-python simulate_movement.py    # Randomly nudges animal coords in output.json (loop)
-python videoproc_video.py      # Overlay + YOLO on videos/testvideo.mp4
-python videoproc_realtime.py   # Overlay + YOLO on webcam
-python yolo_test_video.py      # Bare YOLO detector on a video (no overlay)
-python yolo_test_realtime.py   # Bare YOLO detector on webcam
-```
+In any OpenCV window: `y` toggles YOLO inference, `q` quits.
 
-In the OpenCV window: `y` toggles YOLO inference on/off, `q` quits.
+All Python runtime parameters are env vars handled by `pydantic-settings` (`src/uav/core/config.py`):
+`UAV_MODEL`, `UAV_CONF`, `UAV_IMGSZ`, `UAV_TRACKER`, `UAV_DEVICE`, `UAV_STRIDE`, `UAV_VIDEO`, `UAV_CAM`,
+`UAV_API_HOST`, `UAV_API_PORT`, `UAV_DB_PATH`, `UAV_OUTPUT_JSON`, `UAV_LOG_LEVEL`. Copy `.envrc.example`
+to `.envrc` and `direnv allow` to load defaults on `cd`.
 
-All runtime parameters are environment variables read in `config.py`. Override without editing code:
-```bash
-UAV_DEVICE=mps python videoproc_realtime.py          # Apple Silicon
-UAV_CONF=0.3 UAV_IMGSZ=960 python videoproc_video.py # small/distant animals
-UAV_VIDEO=videos/safari.mp4 UAV_STRIDE=3 python videoproc_video.py
-UAV_MODEL=yolo26s.pt python videoproc_video.py       # COCO baseline (weak on safari classes)
-```
-Full list: `UAV_MODEL`, `UAV_CONF`, `UAV_IMGSZ`, `UAV_TRACKER`, `UAV_DEVICE`, `UAV_STRIDE`, `UAV_VIDEO`, `UAV_CAM`.
+Apple Silicon: prefer CoreML (`uv run python scripts/export_coreml.py` then `UAV_MODEL=…/best.mlpackage`)
+over PyTorch MPS — Neural Engine is more deterministic. Benchmark with `uv run python scripts/benchmark.py`.
 
 ## Architecture
 
-This is a **two-process pipeline coupled by `output.json`**. Understanding this file is the whole architecture:
+The project is mid-migration from a Flask + JSON-file prototype to a FastAPI + SQLite + React stack.
+**Both stacks coexist and share the same data shape** so the legacy video processors keep working.
 
-1. **`web_app.py`** (Flask + Yandex Maps) is the **writer**. The user places animal markers and a 4-corner camera polygon on a map; `POST /sonuc` calls `_build_dataset` to compute per-animal Haversine distance from the polygon center, then does an **atomic write** (`_atomic_write_json` via `tempfile.mkstemp` + `os.replace`, guarded by `_file_lock`) to `output.json`.
+### Data flow (current)
 
-2. **`videoproc_video.py` / `videoproc_realtime.py`** are the **readers**. They poll `output.json` through `video_common.CachedJson`, which reloads only when the file's mtime changes. For every frame they call `render_overlay` to draw the overlay, then (when YOLO is toggled on) `detect_yolo` + `draw_detections`.
+```
+React UI (web/)                        videoproc_*.py (legacy CV loop)
+   │                                          │
+   │ POST /api/state/build                    │ reads (mtime polling)
+   ▼                                          ▼
+FastAPI (src/uav/api)  ──atomic write──►  output.json
+   │                                          ▲
+   │ upsert/get                               │ atomic write
+   ▼                                          │
+SQLite (uav.db, world_state row)              │
+   │                                          │
+   └──────────►  StateBus (asyncio)  ─────►  WS /ws/state ──► React live state
+                                              │
+                                              │ POST /sonuc (legacy alias)
+                                              │
+                                  templates/index.html (Yandex, optional)
+```
 
-3. **`video_common.py`** is the shared core — both processors import from it. Key functions:
-   - `calculate_pixel_coordinates(lat, lon, corner_coords, image_dims)` — naïve GPS→pixel mapping using the axis-aligned bounding box of the 4 corners (NOT a homography; trapezoid/rotated frames will be wrong — see ROADMAP Faz 2.1 for planned `cv2.getPerspectiveTransform` replacement).
-   - `render_overlay` — uses `shapely.Polygon.contains` to split animals into **inside camera FOV** (blue box + temperature) vs **outside FOV** (arrow pointing to nearest polygon edge + distance in metres + Turkish edge name from `EDGE_NAMES`).
-   - `auto_orient(frame)` — portrait frames (`h > w`) get rotated 90° clockwise. This also flips the capture dimensions (`width, height = height, width`) when building `corner_points`.
-   - `detect_yolo(..., use_tracking=True)` — uses `model.track(persist=True, tracker='bytetrack.yaml')` for stable IDs; returned tuples include `track_id`.
-   - `load_yolo` imports `ultralytics` lazily so non-YOLO entry points (like `web_app.py`) don't pay the import cost.
+`output.json` is the **legacy compatibility mirror** — every API mutation writes both SQLite and the
+JSON file via `db/legacy_mirror.atomic_write_json` (using `tempfile.mkstemp` + `os.replace`). The video
+processors have not been touched in this migration; they continue to read `output.json` through
+`video_common.CachedJson` and only reload when mtime changes.
 
-4. **`simulate_movement.py`** is an optional third process used when there is no live UAV feed. It mutates `output.json`'s `animal_coords` with small random GPS offsets every 5 s and recomputes `distance_metre`. Like `web_app.py`, it uses atomic writes.
+### Source layout
+
+```
+src/uav/
+  core/
+    config.py          # pydantic-settings — single source of truth for all UAV_* env vars
+    geo.py             # haversine_metres, polygon_centroid, calculate_pixel_coordinates
+    dataset.py         # build_dataset() — same shape as legacy _build_dataset
+  db/
+    repository.py      # WorldStateRepository — sqlite3 with WAL, single-row world_state table
+    legacy_mirror.py   # atomic_write_json for output.json compat
+  api/
+    app.py             # FastAPI factory + lifespan (seeds SQLite from output.json on first boot)
+    routes.py          # /api/state, /api/state/build, /api/state/camera + legacy aliases /sonuc, /get_data, /save_coordinates
+    websocket.py       # /ws/state — pushes snapshot then updates
+    state_bus.py       # in-memory asyncio pub/sub (replace with Redis when scaling)
+    schemas.py         # Pydantic request/response models
+    deps.py            # FastAPI Depends() wiring (lru_cache singletons)
+  inference/           # (placeholder — see scripts/ for export + benchmark)
+  cli/                 # (placeholder — videoproc_*.py still live at repo root)
+
+scripts/
+  export_coreml.py     # Ultralytics → .mlpackage for Apple Neural Engine
+  benchmark.py         # mean/p50/p95/p99 ms/frame + FPS
+
+web/                   # Vite + React 19 + TypeScript + Tailwind v4 + MapLibre GL JS
+  src/App.tsx          # mode switcher (add-animal / edit-camera / view) + WebSocket sync
+  src/components/MapView.tsx   # MapLibre map, draggable markers, GeoJSON polygon for camera FOV
+  src/components/Sidebar.tsx
+  src/api.ts           # fetchState, buildState, saveCamera, streamState (auto-reconnect WS)
+  vite.config.ts       # proxies /api, /healthz, /ws to UAV_API_URL (default http://127.0.0.1:8000)
+
+tests/                 # pytest — geo, repository, api (with WebSocket smoke), smoke
+```
+
+### Legacy files at repo root (not migrated)
+
+`config.py`, `video_common.py`, `videoproc_video.py`, `videoproc_realtime.py`, `simulate_movement.py`,
+`web_app.py`, `yolo_test_*.py`, `templates/`. These still work but are scheduled to move into
+`src/uav/cli/` and `src/uav/inference/`. Do not break the public behaviour of `output.json` when
+editing — the video processors depend on it.
 
 ### Non-obvious points
 
-- **Default model is fine-tuned, not COCO.** `config.MODEL_PATH` defaults to `yolomodel/yolo26_animals/weights/best.pt` (6 safari classes: Elephant, Giraffe, Impala, Lechwe, Tsessebe, Zebra, mAP50 ≈ 0.911). `yolo26n.pt` / `yolo26s.pt` in the repo root are **COCO baselines** and will detect far fewer animals — only swap them in via `UAV_MODEL=` for comparison runs.
-- **`output.json` is live shared state, not a fixture.** Don't pin tests or features to its current contents; it gets rewritten by the Flask UI and the movement simulator.
-- **YOLO toggle preserves previous detections.** When `UAV_STRIDE > 1`, the processors draw `cached_detections` from the last inferred frame on every intermediate frame — boxes appear to lag, this is intentional frame-skipping.
-- **Model training happens outside the repo.** `yolo_train.ipynb` is meant for Kaggle/Colab (2× T4, ~1 hr). The output zip is unpacked into `yolomodel/` locally — training code is not wired into any Python entry point.
-- **README and code comments are in Turkish.** Variable/function names mix Turkish (`hesapla_kus`, `hesapla_metre`, `EDGE_NAMES = ["Sag Taraf", ...]`) and English. Match the surrounding language when editing.
-- **No test/lint tooling is configured.** `ROADMAP.md` mentions a "12/12 smoke test" but there is no `tests/` directory — don't claim test coverage that doesn't exist.
+- **The default model is the fine-tuned `yolomodel/yolo26_animals/weights/best.pt`**, not COCO.
+  `yolomodel/` is now gitignored; the repo no longer ships weights — distribute via Releases / S3 /
+  Hugging Face Hub. `yolo26n.pt` / `yolo26s.pt` at repo root are COCO baselines kept for comparison
+  via `UAV_MODEL=`.
+- **Two virtualenvs may exist on disk.** `env/` is the legacy `python -m venv` install; `.venv/` is
+  the new `uv sync` install. Always use `uv run …` or activate `.venv/bin/activate` for new work.
+- **`calculate_pixel_coordinates` is still a naïve bbox mapping**, not a homography. Trapezoidal /
+  rotated frames are wrong. The replacement (`cv2.getPerspectiveTransform`) is ROADMAP Faz 2.1.
+- **YOLO toggle preserves previous detections.** When `UAV_STRIDE > 1`, processors draw
+  `cached_detections` from the last inferred frame on intermediate frames — boxes appear to lag,
+  this is intentional.
+- **Model training is not wired into any entry point.** `yolo_train.ipynb` is meant for
+  Kaggle/Colab; the produced zip is unpacked into `yolomodel/` locally.
+- **Code mixes Turkish and English.** README, comments, and some identifiers (`hesapla_metre`,
+  `EDGE_NAMES = ["Sag Taraf", ...]`) are Turkish. Match the surrounding language when editing.
+- **Tests cover the new package.** `tests/` exercises `core/`, `db/`, `api/` with `pytest --cov`
+  enforced (currently ~88%). Legacy root-level scripts have no tests.
 
 ## Roadmap context
 
-`ROADMAP.md` lays out phases 0–8. Phase 0 is complete. When extending the project, check the roadmap before inventing a design — for example, the pixel-mapping rewrite (homography), WebSocket live video, and PostGIS migration are all already scoped there.
+`ROADMAP.md` lays out phases 0–8. Phase 0 (foundation hardening) and most of Phase 1 (object
+tracking via ByteTrack, fine-tuned model) are done. The current refactor delivers chunks of
+Phase 3.2 (FastAPI + WebSocket + MapLibre) and prepares for Phase 4.1 (PostgreSQL + PostGIS) by
+gating all writes through a repository abstraction. When extending the project, check the roadmap
+before inventing a design — the homography rewrite, live RTSP intake, and PostGIS migration are
+already scoped there.

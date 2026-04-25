@@ -43,10 +43,26 @@ runs/
 videos/safari*
 videos/*.f[0-9]*.mp4
 
-# Training artifacts inside yolomodel/ (plots, batch previews, csv logs)
-# Weights themselves are distributed separately — see README.
-yolomodel/**/*.png
-yolomodel/**/*.jpg
-yolomodel/**/*.jpeg
-yolomodel/**/*.csv
-yolomodel/**/args.yaml
+# Trained model artifacts (weights, plots, batch previews, csv logs).
+# Distribute via Releases / S3 / Hugging Face Hub — see README.
+yolomodel/
+
+# Frontend (Faz D)
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Local-only DB / runtime
+*.db
+*.db-journal
+*.db-wal
+uav.db*
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# direnv
+.envrc
+.direnv/

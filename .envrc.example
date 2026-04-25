@@ -1,0 +1,41 @@
+# Copy to .envrc and run `direnv allow` to load these on `cd` into the project.
+# Install direnv: `brew install direnv` then add `eval "$(direnv hook zsh)"` to ~/.zshrc
+
+# Activate the uv-managed virtualenv
+source_env_if_exists .venv/bin/activate
+
+# --- Inference defaults (override on command line: UAV_CONF=0.3 just video) ---
+
+# Path to YOLO weights. Default = fine-tuned safari classes.
+# export UAV_MODEL="yolomodel/yolo26_animals/weights/best.pt"
+
+# Confidence threshold (0.0 - 1.0)
+# export UAV_CONF="0.4"
+
+# Inference image size
+# export UAV_IMGSZ="640"
+
+# Tracker config
+# export UAV_TRACKER="bytetrack.yaml"
+
+# Compute device — leave empty for auto-detect.
+# Apple Silicon: "mps" (PyTorch) or "coreml" (post-export, fastest on Neural Engine).
+# CUDA: "0", "1", ...
+# CPU: "cpu"
+# export UAV_DEVICE="mps"
+
+# Run YOLO every N frames (1 = every frame, higher = lighter load)
+# export UAV_STRIDE="1"
+
+# Default video file
+# export UAV_VIDEO="videos/testvideo.mp4"
+
+# Webcam index (0 = built-in)
+# export UAV_CAM="0"
+
+# --- API server ---
+
+# export UAV_API_HOST="127.0.0.1"
+# export UAV_API_PORT="8000"
+# export UAV_DB_URL="sqlite:///./uav.db"
+# export UAV_LOG_LEVEL="INFO"

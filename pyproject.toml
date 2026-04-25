@@ -1,0 +1,126 @@
+[project]
+name = "uav-live-animal-detection"
+version = "0.2.0"
+description = "UAV live animal detection, tracking, and geolocation system"
+requires-python = ">=3.11,<3.14"
+readme = "README.md"
+authors = [
+    { name = "Alperen Karsli", email = "alperenkarsliceng@gmail.com" },
+    { name = "Anil Taha Adak", email = "tahaadak94@gmail.com" },
+    { name = "Asil Findik", email = "asilfndk@gmail.com" },
+]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "websockets>=13",
+    "shapely>=2.0",
+    "numpy>=1.26,<2.3",
+    "opencv-python>=4.10",
+    "ultralytics>=8.3",
+    "lap>=0.5.12",
+    "python-multipart>=0.0.20",
+    "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+ml = [
+    "coremltools>=8.0; sys_platform == 'darwin'",
+    "onnx>=1.17",
+    "onnxruntime>=1.20",
+]
+legacy = [
+    "flask>=2.3",
+]
+dev = [
+    "ruff>=0.7",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "httpx>=0.27",
+    "pre-commit>=4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uav"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "env",
+    ".venv",
+    "yolomodel",
+    "datasets",
+    "runs",
+    "yolo_train.ipynb",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "RUF",      # ruff-specific
+    "TID",      # tidy imports
+    "PT",       # pytest style
+    "PIE",      # misc
+]
+ignore = [
+    "E501",     # line too long (handled by formatter)
+    "B008",     # function call in default arg (FastAPI Depends)
+    "RUF012",   # mutable class attrs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+"scripts/**" = ["T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src/uav",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "yolo: tests that require a YOLO model on disk",
+    "integration: end-to-end tests",
+]
+
+[tool.coverage.run]
+source = ["src/uav"]
+omit = [
+    "*/tests/*",
+    "*/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

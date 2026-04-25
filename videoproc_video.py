@@ -1,7 +1,9 @@
 import os
 import sys
 import traceback
+
 import cv2
+
 import config
 from video_common import (
     CachedJson,
@@ -69,15 +71,15 @@ def main():
 
         display = fit_to_screen(frame)
         try:
-            cv2.imshow('Video', display)
+            cv2.imshow("Video", display)
         except cv2.error as e:
             print(f"[v3] cv2.imshow failed: {e}")
             print("[v3] Fix: pip uninstall -y opencv-python-headless && pip install opencv-python")
             break
 
         key = cv2.waitKey(25) & 0xFF
-        if key == ord('y'):
-            cv2.destroyWindow('Video')
+        if key == ord("y"):
+            cv2.destroyWindow("Video")
 
             frame_count = 0
             cached_detections = []
@@ -91,19 +93,22 @@ def main():
                 frame_count += 1
                 if frame_count % config.PROCESS_EVERY_N_FRAMES == 0:
                     cached_detections = detect_yolo(
-                        yolo_frame, model,
-                        conf=config.CONFIDENCE, imgsz=config.IMG_SIZE,
-                        use_tracking=True, tracker=config.TRACKER,
+                        yolo_frame,
+                        model,
+                        conf=config.CONFIDENCE,
+                        imgsz=config.IMG_SIZE,
+                        use_tracking=True,
+                        tracker=config.TRACKER,
                     )
                 draw_detections(yolo_frame, cached_detections)
 
                 cv2.imshow("YOLO", fit_to_screen(yolo_frame))
 
-                if cv2.waitKey(25) & 0xFF == ord('y'):
+                if cv2.waitKey(25) & 0xFF == ord("y"):
                     cv2.destroyWindow("YOLO")
                     break
 
-        elif key == ord('q'):
+        elif key == ord("q"):
             break
 
     cap.release()

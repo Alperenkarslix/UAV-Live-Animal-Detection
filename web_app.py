@@ -1,13 +1,14 @@
-from flask import Flask, render_template, request, jsonify
-import math
 import json
+import math
 import os
 import tempfile
 import threading
 
+from flask import Flask, jsonify, render_template, request
+
 app = Flask(__name__)
-app.config['TEMPLATES_AUTO_RELOAD'] = True
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 OUTPUT_PATH = "output.json"
 _file_lock = threading.Lock()
@@ -24,7 +25,10 @@ def hesapla_metre(coord1, coord2):
     lat2, lon2 = map(math.radians, coord2)
     delta_lat = lat2 - lat1
     delta_lon = lon2 - lon1
-    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     R = 6371000
     return R * c
@@ -48,7 +52,7 @@ def _atomic_write_json(data, path=None):
 def _read_json(path=None):
     if path is None:
         path = OUTPUT_PATH
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -81,11 +85,11 @@ def _build_dataset(marker_data_list, rectangle_data_list):
     }
 
 
-@app.route('/sonuc', methods=['POST'])
+@app.route("/sonuc", methods=["POST"])
 def sonuc():
     try:
-        marker_data = json.loads(request.form.get('markerData', '[]'))
-        rectangle_data = json.loads(request.form.get('rectangleData', '[]'))
+        marker_data = json.loads(request.form.get("markerData", "[]"))
+        rectangle_data = json.loads(request.form.get("rectangleData", "[]"))
 
         if not isinstance(marker_data, list) or not isinstance(rectangle_data, list):
             return jsonify({"error": "Invalid data shape"}), 400
@@ -98,7 +102,7 @@ def sonuc():
             _atomic_write_json(data)
 
         return render_template(
-            'sonuc.html',
+            "sonuc.html",
             mdList=marker_data,
             rcList=data["camera_coords"],
             orta_nokta=(data["center_x"], data["center_y"]),
@@ -109,7 +113,7 @@ def sonuc():
         return jsonify({"error": str(e)}), 400
 
 
-@app.route('/get_data', methods=['GET'])
+@app.route("/get_data", methods=["GET"])
 def get_data():
     try:
         if not os.path.exists(OUTPUT_PATH):
@@ -121,11 +125,11 @@ def get_data():
         return jsonify({"error": "Data corrupted"}), 500
 
 
-@app.route('/save_coordinates', methods=['POST'])
+@app.route("/save_coordinates", methods=["POST"])
 def save_coordinates():
     data = request.get_json(silent=True) or {}
-    camera_coords = data.get('camera_coords')
-    center_coords = data.get('center_coords')
+    camera_coords = data.get("camera_coords")
+    center_coords = data.get("center_coords")
 
     if not camera_coords or not center_coords:
         return jsonify({"error": "Invalid or missing data"}), 400
@@ -133,11 +137,13 @@ def save_coordinates():
     try:
         with _file_lock:
             existing_data = _read_json() if os.path.exists(OUTPUT_PATH) else {}
-            existing_data.update({
-                'camera_coords': camera_coords,
-                'center_x': center_coords[0],
-                'center_y': center_coords[1],
-            })
+            existing_data.update(
+                {
+                    "camera_coords": camera_coords,
+                    "center_x": center_coords[0],
+                    "center_y": center_coords[1],
+                }
+            )
             _atomic_write_json(existing_data)
 
         return jsonify({"status": "success"}), 200
@@ -145,10 +151,10 @@ def save_coordinates():
         return jsonify({"error": "Data corrupted"}), 500
 
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET"])
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
 
-if __name__ == '__main__':
-    app.run(debug=False, host='127.0.0.1', port=5000)
+if __name__ == "__main__":
+    app.run(debug=False, host="127.0.0.1", port=5000)

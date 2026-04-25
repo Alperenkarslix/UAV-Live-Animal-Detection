@@ -1,6 +1,7 @@
-import cv2
 import json
 import os
+
+import cv2
 from shapely.geometry import Point, Polygon
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -33,7 +34,7 @@ def calculate_pixel_coordinates(lat, lon, corner_coords, image_dimensions):
 
 
 def load_output_data(path="output.json"):
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -49,7 +50,7 @@ class CachedJson:
         except OSError:
             return self._data
         if mtime != self._mtime or self._data is None:
-            with open(self.path, "r") as f:
+            with open(self.path) as f:
                 self._data = json.load(f)
             self._mtime = mtime
         return self._data
@@ -68,7 +69,7 @@ def draw_corner_labels(frame, camera_coords, corner_points):
 
 def _nearest_side_index(animal_x, animal_y, rect_coords):
     nearest_idx = 0
-    min_distance = float('inf')
+    min_distance = float("inf")
     for i, (start_x, start_y) in enumerate(rect_coords):
         end_x, end_y = rect_coords[(i + 1) % 4]
         side_cx = (start_x + end_x) / 2
@@ -80,8 +81,12 @@ def _nearest_side_index(animal_x, animal_y, rect_coords):
     return nearest_idx
 
 
-def _draw_inside_animal(frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset):
-    cv2.putText(frame, f"{animal_data['name']} icinde", (0, y_offset), FONT, 0.5, TEXT_COLOR, 1, cv2.LINE_AA)
+def _draw_inside_animal(
+    frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset
+):
+    cv2.putText(
+        frame, f"{animal_data['name']} icinde", (0, y_offset), FONT, 0.5, TEXT_COLOR, 1, cv2.LINE_AA
+    )
     px, py = calculate_pixel_coordinates(animal_x, animal_y, rect_coords, (frame_w, frame_h))
     cv2.rectangle(frame, (px - 10, py - 10), (px + 10, py + 10), (255, 0, 0), 1)
     text = f"{animal_data['name']}: Sicaklik{animal_data['temperature']:.2f}"
@@ -89,16 +94,25 @@ def _draw_inside_animal(frame, animal_data, animal_x, animal_y, rect_coords, fra
     cv2.putText(frame, text, (px - tw // 2, py + 20), FONT, 0.5, TEXT_COLOR, 1, cv2.LINE_AA)
 
 
-def _draw_outside_animal(frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset):
+def _draw_outside_animal(
+    frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset
+):
     nearest_idx = _nearest_side_index(animal_x, animal_y, rect_coords)
     nearest_side_name = EDGE_NAMES[nearest_idx % len(EDGE_NAMES)]
     cv2.putText(
         frame,
         f"{animal_data['name']} disinda ({nearest_side_name})",
-        (0, y_offset), FONT, 0.5, TEXT_COLOR, 1, cv2.LINE_AA,
+        (0, y_offset),
+        FONT,
+        0.5,
+        TEXT_COLOR,
+        1,
+        cv2.LINE_AA,
     )
 
-    target_x, target_y = calculate_pixel_coordinates(animal_x, animal_y, rect_coords, (frame_w, frame_h))
+    target_x, target_y = calculate_pixel_coordinates(
+        animal_x, animal_y, rect_coords, (frame_w, frame_h)
+    )
     center_x, center_y = frame_w // 2, frame_h // 2
 
     target_x = max(0, min(target_x, frame_w - 1))
@@ -140,9 +154,13 @@ def render_overlay(frame, data, corner_points):
         animal_point = Point(animal_x, animal_y)
 
         if rect_polygon.contains(animal_point):
-            _draw_inside_animal(frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset)
+            _draw_inside_animal(
+                frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset
+            )
         else:
-            _draw_outside_animal(frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset)
+            _draw_outside_animal(
+                frame, animal_data, animal_x, animal_y, rect_coords, frame_w, frame_h, y_offset
+            )
         y_offset += 30
 
 
@@ -191,6 +209,7 @@ def read_with_loop(cap):
 def load_yolo(model_path, device=""):
     """Lazily import Ultralytics so modules that never run YOLO stay importable."""
     from ultralytics import YOLO
+
     model = YOLO(model_path)
     if device:
         try:
@@ -203,7 +222,9 @@ def load_yolo(model_path, device=""):
 def detect_yolo(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
     """Run inference and return a list of (x1, y1, x2, y2, label, conf, track_id) tuples."""
     if use_tracking:
-        results = model.track(frame, conf=conf, imgsz=imgsz, persist=True, tracker=tracker, verbose=False)
+        results = model.track(
+            frame, conf=conf, imgsz=imgsz, persist=True, tracker=tracker, verbose=False
+        )
     else:
         results = model(frame, conf=conf, imgsz=imgsz, verbose=False)
 
@@ -233,6 +254,10 @@ def draw_detections(frame, detections):
     return frame
 
 
-def run_yolo_overlay(frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"):
-    detections = detect_yolo(frame, model, conf=conf, imgsz=imgsz, use_tracking=use_tracking, tracker=tracker)
+def run_yolo_overlay(
+    frame, model, conf=0.4, imgsz=640, use_tracking=False, tracker="bytetrack.yaml"
+):
+    detections = detect_yolo(
+        frame, model, conf=conf, imgsz=imgsz, use_tracking=use_tracking, tracker=tracker
+    )
     return draw_detections(frame, detections)

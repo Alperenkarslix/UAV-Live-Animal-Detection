@@ -1,9 +1,9 @@
 import json
-import random
-import time
 import math
 import os
+import random
 import tempfile
+import time
 
 OUTPUT_PATH = "output.json"
 
@@ -17,7 +17,10 @@ def hesapla_metre(coord1, coord2):
     delta_lat = lat2 - lat1
     delta_lon = lon2 - lon1
 
-    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     R = 6371000
     return R * c
@@ -35,7 +38,9 @@ def move_animals(animal_coords, center_lat, center_lon, verbose=False):
         animal_info["distance_metre"] = distance
 
         if verbose:
-            print(f"{animal_info['name']} konumu güncellendi: ({animal_info['x']}, {animal_info['y']})")
+            print(
+                f"{animal_info['name']} konumu güncellendi: ({animal_info['x']}, {animal_info['y']})"
+            )
 
     return animal_coords
 
@@ -56,14 +61,16 @@ def write_to_json(data, path=None):
 
 
 def main():
-    with open(OUTPUT_PATH, "r") as f:
+    with open(OUTPUT_PATH) as f:
         data = json.load(f)
 
     center_lat = data["center_x"]
     center_lon = data["center_y"]
 
     while True:
-        data["animal_coords"] = move_animals(data["animal_coords"], center_lat, center_lon, verbose=True)
+        data["animal_coords"] = move_animals(
+            data["animal_coords"], center_lat, center_lon, verbose=True
+        )
         write_to_json(data)
         time.sleep(5)
 

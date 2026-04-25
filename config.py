@@ -5,6 +5,7 @@ Override any value with an environment variable, e.g.:
     UAV_MODEL=yolo26s.pt python videoproc_realtime.py
     UAV_CONF=0.3 python yolo_test_video.py
 """
+
 import os
 
 # Model
